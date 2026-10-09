@@ -2,6 +2,8 @@ import { z } from 'zod'
 import { packSchema, publicationErrors, type MachinePack } from '../../../shared/contracts.ts'
 import { machineIdSchema, proposalSchema } from '../../../shared/research.ts'
 import type { ConnectorServices } from './connector.ts'
+import { gameStateSchema, validValue, type GameState } from '../../../shared/state.ts'
+import { scanReadingSchema, validateScan } from '../../../shared/scan.ts'
 
 export class ApiError extends Error { constructor(public status: number, message: string) { super(message) } }
 export interface Identity { id: string; role: 'tester' | 'editor' | 'owner'; scope?:'research'; tokenId?:string }
@@ -9,7 +11,9 @@ export interface Services {
   authenticate(token: string): Promise<Identity>
   connector?: ConnectorServices
   catalogue(): Promise<unknown>
-  latestPack(variantId: string): Promise<MachinePack | null>
+  latestPack(variantId: string, version?:number): Promise<MachinePack | null>
+  history?(claimId:string):Promise<unknown>
+  release?(body:{id:string;variantId:string;version:string;releasedAt:string|null}):Promise<void>
   workspace(): Promise<unknown>
   review(body: {id:string;revision:number;status:'approved'|'rejected';reviewNote:string}, actor: string): Promise<void>
   saveDraft(pack: MachinePack): Promise<void>
@@ -17,14 +21,15 @@ export interface Services {
   research(variantId: string, query: string, actor: string): Promise<void>
   budget(limitMicroAud: number): Promise<void>
   reserve(requestId: string, kind: string): Promise<boolean>
-  coach(pack: MachinePack, question: string, confirmedOutcomes: string[]): Promise<unknown>
+  coach(pack: MachinePack, question: string, confirmedOutcomes: string[], state?:GameState): Promise<unknown>
   identify(photos: string[]): Promise<unknown>
+  scan?(pack:MachinePack, photos:string[]):Promise<unknown>
   activity(body: {id:string;gameId:string;timestamp:number;kind:string;text:string}, actor: Identity, token:string): Promise<void>
   sync?(body: SyncPayload, actor:Identity, token:string):Promise<unknown>
 }
 export const syncSchema=z.object({
-  games:z.array(z.object({id:z.string().uuid(),variantId:z.string().min(1).max(100),startedAt:z.number().int().nonnegative(),updatedAt:z.number().int().nonnegative(),score:z.number().int().nonnegative().nullable(),ended:z.boolean(),completed:z.array(z.string().max(100)).max(100)})).max(500),
-  events:z.array(z.object({id:z.string().uuid(),gameId:z.string().uuid(),timestamp:z.number().int().nonnegative(),kind:z.string().max(30),text:z.string().max(4000)})).max(500),
+  games:z.array(z.object({id:z.string().uuid(),variantId:z.string().min(1).max(100),startedAt:z.number().int().nonnegative(),updatedAt:z.number().int().nonnegative(),score:z.number().int().nonnegative().nullable(),ended:z.boolean(),completed:z.array(z.string().max(100)).max(100),packVersion:z.number().int().positive().nullable().optional(),state:gameStateSchema.optional()})).max(500),
+  events:z.array(z.object({id:z.string().uuid(),gameId:z.string().uuid(),timestamp:z.number().int().nonnegative(),kind:z.string().max(30),text:z.string().max(4000),payload:z.object({ruleId:z.string().max(100).optional(),origin:z.enum(['player','inferred']).optional(),before:gameStateSchema.optional(),after:gameStateSchema.optional(),completedBefore:z.array(z.string().max(100)).max(100).optional(),supersedes:z.string().uuid().optional(),scoreBefore:z.number().int().safe().nonnegative().nullable().optional(),scoreAfter:z.number().int().safe().nonnegative().nullable().optional(),scan:z.object({capturedAt:z.number().int().nonnegative(),packVersion:z.number().int().positive(),readings:z.array(scanReadingSchema).min(1).max(12),detectedReadings:z.array(scanReadingSchema).max(12)}).strict().optional()}).strict().optional()})).max(500),
   learning:z.array(z.object({variantId:z.string().max(100),outcome:z.string().max(100),learnedAt:z.number().int().nonnegative()})).max(1000),
   favourites:z.array(z.string().max(100)).max(500),
 })
@@ -71,7 +76,8 @@ export function createHandler(services: Services, allowedOrigin: string) {
         }
         if(path==='catalogue') return reply(await services.catalogue())
         if(path==='admin/workspace') return reply(await services.workspace())
-        if(path.startsWith('packs/')) { const p=await services.latestPack(decodeURIComponent(path.slice(6))); if(!p) throw new ApiError(404,'No reviewed pack is published for this machine yet'); return reply(p) }
+        if(path.startsWith('admin/history/') && services.history) return reply(await services.history(variantId.parse(decodeURIComponent(path.slice('admin/history/'.length)))))
+        if(path.startsWith('packs/')) { const version=new URL(request.url).searchParams.get('version'); const p=await services.latestPack(decodeURIComponent(path.slice(6)),version===null?undefined:z.coerce.number().int().positive().parse(version)); if(!p) throw new ApiError(404,'No reviewed pack is published for this machine yet'); return reply(p) }
         throw new ApiError(404,'Route not found')
       }
       if(request.method!=='POST') throw new ApiError(405,'Method not allowed')
@@ -100,6 +106,7 @@ export function createHandler(services: Services, allowedOrigin: string) {
         const b=z.object({id:variantId,revision:z.number().int().positive(),status:z.enum(['approved','rejected']),reviewNote:z.string().max(2000)}).parse(body)
         await services.review(b,actor.id); return reply({ok:true})
       }
+      if(path==='admin/releases' && services.release) { await services.release(z.object({id:machineIdSchema,variantId,version:z.string().trim().min(1).max(100),releasedAt:z.string().date().nullable()}).strict().parse(body)); return reply({ok:true},201) }
       if(path==='admin/draft') { const b=z.object({pack:packSchema}).parse(body); await services.saveDraft(b.pack); return reply({ok:true}) }
       if(path==='admin/publish') { const b=z.object({variantId,version:z.number().int().positive()}).parse(body); await services.publish(b.variantId,b.version,actor.id); return reply({ok:true}) }
       if(path==='admin/research') { const b=z.object({variantId,query:z.string().min(5).max(2000)}).parse(body); await services.research(b.variantId,b.query,actor.id); return reply({ok:true},202) }
@@ -109,12 +116,22 @@ export function createHandler(services: Services, allowedOrigin: string) {
         await services.budget(b.limitMicroAud); return reply({ok:true})
       }
       if(path==='coach') {
-        const b=z.object({variantId,question:z.string().trim().min(1).max(1000),requestId,confirmedOutcomes:z.array(z.string().max(100)).max(100).default([])}).parse(body)
-        const pack=await services.latestPack(b.variantId)
+        const b=z.object({variantId,question:z.string().trim().min(1).max(1000),requestId,confirmedOutcomes:z.array(z.string().max(100)).max(100).default([]),packVersion:z.number().int().positive().optional(),state:gameStateSchema.optional()}).parse(body)
+        const pack=await services.latestPack(b.variantId,b.packVersion)
         if(!pack || publicationErrors(pack).length) return reply({answer:'There is no verified guide for this edition yet. I cannot give reliable machine-specific advice.',kind:'unknown',claimIds:[],shotIds:[],uncertainty:'Content awaits review.'})
         if(b.confirmedOutcomes.some(id=>!pack.rules.some(r=>r.outcome===id))) throw new ApiError(400,'Game progress does not match this machine pack')
+        for(const [id,cell] of Object.entries(b.state??{})) { const def=pack.stateVariables?.find(d=>d.id===id); if(!def||!validValue(def,cell.value)) throw new ApiError(400,'Game state does not match this guide version') }
         if(!await services.reserve(b.requestId,'coach')) throw new ApiError(429,'Online AI is paused by the spending cap or is not configured. Downloaded guides still work.')
-        return reply(validateAnswer(await services.coach(pack,b.question,b.confirmedOutcomes),pack))
+        return reply(validateAnswer(await services.coach(pack,b.question,b.confirmedOutcomes,b.state),pack))
+      }
+      if(path==='scan' && services.scan) {
+        const b=z.object({requestId,variantId,packVersion:z.number().int().positive(),photos:z.array(z.string().max(2_800_000).regex(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/)).min(1).max(2)}).strict().parse(body)
+        const pack=await services.latestPack(b.variantId,b.packVersion)
+        if(!pack || publicationErrors(pack).length) throw new ApiError(409,'Download a reviewed guide for this edition before scanning progress.')
+        if(!await services.reserve(b.requestId,'identify')) throw new ApiError(429,'Scanning is paused by the spending cap or is not configured. Update progress manually.')
+        const result=await services.scan(pack,b.photos)
+        try {return reply({...validateScan(result,pack),requiresConfirmation:true})}
+        catch {throw new ApiError(502,'The display could not be read reliably. Try another scan or update progress manually.')}
       }
       if(path==='identify') {
         const b=z.object({requestId,photos:z.array(z.string().max(2_800_000).regex(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/)).min(1).max(2)}).parse(body)

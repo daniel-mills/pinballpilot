@@ -1,4 +1,19 @@
 import { test, expect } from '@playwright/test'
+
+test('version 2 upgrade preserves evidence and enables state editing',async({page})=>{
+  await page.goto('/')
+  await page.getByText('Rules & guides',{exact:true}).click()
+  await page.getByRole('button',{name:'Upgrade draft to version 2'}).click()
+  await expect(page.getByText('Pack format 2 · State engine 1')).toBeVisible()
+  await page.getByRole('button',{name:'State definitions and preview'}).click()
+  await page.getByLabel('State variable definitions (JSON)').fill('[{"id":"locks","label":"Lock credits","type":"counter","scope":"game","initial":0}]')
+  await page.getByRole('button',{name:'Apply definitions'}).click()
+  await page.reload()
+  await page.getByText('Rules & guides',{exact:true}).click()
+  await expect(page.getByText('Pack format 2 · State engine 1')).toBeVisible()
+  await page.getByRole('button',{name:'State definitions and preview'}).click()
+  await expect(page.getByLabel('State variable definitions (JSON)')).toHaveValue(/locks/)
+})
 test('review decisions survive refresh; sandbox publication stays separate',async({page})=>{
   await page.goto('/')
   await expect(page.getByRole('heading',{name:'A good game starts with a clear plan.'})).toBeVisible()

@@ -7,7 +7,7 @@ This is a local **stdio MCP server** connecting over HTTPS to the deployed Pinba
 ## 1. Prepare the backend and admin
 
 1. Configure Supabase and editor membership as described in `BACKEND.md`.
-2. Apply all five migrations, including `202610090005_research_connector.sql`, and deploy the updated `pilot` edge function. Update the admin build too. The seed supplies the initial machine catalog; do not reset a live database.
+2. Apply all eight migrations in order, including the knowledge history and session-state migrations 006–008, and deploy the updated `pilot` edge function. Update the admin build too. The seed supplies the initial machine catalog; do not reset a live database.
 3. Sign in to the connected admin as an editor or owner. Open **Settings → Research connectors**.
 4. Create a named connector token for 7, 30 or 90 days. Copy it while displayed. Only its SHA-256 digest is stored in the database; the plaintext is not persisted by the admin browser.
 5. Use a separate token for each assistant so you can revoke them independently. Tokens belong to their issuing editor and stop working if that membership is removed.
@@ -105,3 +105,8 @@ The existing **Request new research** queue is still the separate API-backed res
 - The SDK is pinned to the supported v1 maintenance line to share the project's Zod 3 schemas. No MCP sampling is used, so hosts need only standard tools/prompts support.
 
 Official references: [Codex MCP configuration](https://learn.chatgpt.com/docs/extend/mcp), [Claude Code MCP configuration](https://code.claude.com/docs/en/mcp), [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk/tree/v1.x).
+## Versioned knowledge proposals
+
+The connector now returns registered software releases, current citation revisions and draft state definitions. Proposals can add `applicability` (`unknown`, `releases`, or `not_applicable`), source `relation` (`supports` or `contradicts`) and an optional SHA-256 `contentHash` of retrieved document bytes. Do not invent hashes or release IDs. Register a release through the admin portal before proposing applicability to it.
+
+Stateful recommendations also include `ruleSpec`: the exact rule ID, shot ID, prerequisites, outcome, repeatable flag, conditions, effects and complete variable definitions. Human approval covers this specification as well as wording. Changing any of that behaviour requires a new reviewed revision. The previous proposal format remains accepted with unknown applicability. Read [DATA-MODEL.md](DATA-MODEL.md) for the contract and migration sequence.

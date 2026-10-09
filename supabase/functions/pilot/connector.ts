@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ApiError } from './handler.ts'
 import type { ResearchProposal } from '../../../shared/research.ts'
+import { evidenceFor } from './knowledge.ts'
 
 export async function tokenHash(token:string) {
   return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token)))).map(b=>b.toString(16).padStart(2,'0')).join('')
@@ -36,11 +37,13 @@ export function createConnectorServices(root:SupabaseClient) {
     async knowledge(id:string,offset:number) {
       const machine=checked(await root.from('machine_variants').select('id,edition,software,machines(name,manufacturer)').eq('id',id).maybeSingle())
       if(!machine) throw new ApiError(404,'Machine edition not found')
-      const claims=checked(await root.from('claims').select('id,variant_id,kind,title,body,source_ids,status,revision,reviewed_revision,software,review_note').eq('variant_id',id).order('id').range(offset,offset+99))??[]
+      const claims=checked(await root.from('claims').select('id,variant_id,kind,title,body,source_ids,status,revision,reviewed_revision,software,review_note,applicability,rule_spec').eq('variant_id',id).order('id').range(offset,offset+99))??[]
       const ids=[...new Set(claims.flatMap(c=>c.source_ids as string[]))]
       const sources=ids.length?checked(await root.from('knowledge_sources').select('*').in('id',ids)):[]
       const draft=checked(await root.from('pack_drafts').select('payload,revision').eq('variant_id',id).maybeSingle())
-      return {machine,claims,sources,guideDraft:draft?{revision:draft.revision,rules:draft.payload.rules,strategies:draft.payload.strategies}:null,nextOffset:claims.length===100?offset+100:null}
+      const evidence=await evidenceFor(root,claims.map(c=>c.id))
+      const releases=checked(await root.from('software_releases').select('*').eq('variant_id',id))??[]
+      return {machine,claims,sources,evidence,releases,guideDraft:draft?{revision:draft.revision,rules:draft.payload.rules,strategies:draft.payload.strategies,stateVariables:draft.payload.stateVariables,applicability:draft.payload.applicability}:null,nextOffset:claims.length===100?offset+100:null}
     },
     async proposals(id:string|undefined,offset:number) {
       let query=root.from('research_proposals').select('id,variant_id,target_claim_id,base_revision,payload,previous_claim,status,created_at,review_note,applied_claim_id').order('created_at',{ascending:false}).order('id').range(offset,offset+49)

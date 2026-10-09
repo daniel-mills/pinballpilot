@@ -1,4 +1,15 @@
 import { z } from 'zod'
+import { conditionsSchema, effectSchema, stateVariableSchema, conditionsMet, stateErrors, ruleSpecSchema, canonical, type GameState } from './state.ts'
+
+export const applicabilitySchema = z.object({
+  status: z.enum(['unknown', 'releases', 'not_applicable']),
+  releaseIds: z.array(z.string().min(1).max(100)).max(100),
+  settings: z.string().max(2000),
+}).strict().refine(a => (a.status === 'releases') === (a.releaseIds.length > 0), 'Specify releases only for release-specific applicability')
+export const citationSchema = z.object({
+  sourceId: z.string(), sourceRevision: z.number().int().positive(),
+  locator: z.string().min(1).max(300), relation: z.enum(['supports', 'contradicts']),
+}).strict()
 
 const id = z.string().min(1).max(100)
 const text = z.string().min(1).max(4000)
@@ -7,12 +18,15 @@ export const geometrySchema = z.object({ point, polygon: z.array(point).min(3).o
 export const sourceSchema = z.object({
   id, title: text, url: z.string().url(), kind: z.enum(['manufacturer', 'rulesheet', 'community', 'video', 'original']),
   locator: z.string(), accessedAt: z.string(), notes: z.string(),
+  revision: z.number().int().positive().optional(), contentHash: z.string().regex(/^[a-f0-9]{64}$/).nullable().optional(),
 })
 export const claimSchema = z.object({
   id, variantId: id, kind: z.enum(['fact', 'recommendation']), title: text, body: text,
   sourceIds: z.array(id).min(1), status: z.enum(['pending', 'approved', 'rejected']),
   revision: z.number().int().positive(), reviewedRevision: z.number().int().positive().nullable(),
   reviewNote: z.string(), software: z.string(),
+  applicability: applicabilitySchema.optional(), citations: z.array(citationSchema).optional(),
+  ruleSpec: ruleSpecSchema.nullable().optional(),
 })
 export const shotSchema = z.object({
   id, name: text, type: z.enum(['ramp', 'orbit', 'target', 'scoop', 'lock', 'lane', 'bumper']),
@@ -21,13 +35,17 @@ export const shotSchema = z.object({
 export const ruleSchema = z.object({
   id, shotId: id, claimIds: z.array(id).min(1), instruction: text, why: text,
   prerequisites: z.array(id), outcome: id, value: z.number().min(0).max(1), progression: z.number().min(0).max(1),
+  repeatable: z.boolean().optional(), conditions: conditionsSchema.optional(), effects: z.array(effectSchema).max(100).optional(),
 })
 export const strategySchema = z.object({
   id, title: text, objective: z.enum(['scoring', 'multiball']), level: z.enum(['simple', 'advanced']),
   claimIds: z.array(id).min(1), steps: z.array(id).min(1),
 })
 export const packSchema = z.object({
-  schemaVersion: z.literal(1), variantId: id, version: z.number().int().positive(),
+  schemaVersion: z.union([z.literal(1), z.literal(2)]), variantId: id, version: z.number().int().positive(),
+  engineVersion: z.literal(1).optional(), applicability: applicabilitySchema.optional(),
+  stateVariables: z.array(stateVariableSchema).max(200).optional(),
+  releases: z.array(z.object({id, variantId:id, version:text, releasedAt:z.string().date().nullable()})).optional(),
   name: text, edition: text, manufacturer: text, demo: z.boolean(),
   image: z.object({ path: z.string().min(1), license: text, rightsConfirmed: z.boolean(), width: z.number().int().positive(), height: z.number().int().positive() }),
   shots: z.array(shotSchema), rules: z.array(ruleSchema), strategies: z.array(strategySchema),
@@ -43,6 +61,28 @@ export function publicationErrors(input: unknown): string[] {
   const p = parsed.data, errors: string[] = []
   const unique = (items: { id: string }[], label: string) => { if (new Set(items.map(i => i.id)).size !== items.length) errors.push(`Duplicate ${label} identifiers`) }
   unique(p.shots, 'shot'); unique(p.rules, 'rule'); unique(p.claims, 'claim'); unique(p.sources, 'source'); unique(p.strategies, 'strategy')
+  if (p.schemaVersion === 1 && (p.stateVariables?.length || p.rules.some(r => r.repeatable || r.conditions || r.effects?.length))) errors.push('Stateful rules require pack schema version 2')
+  if (p.schemaVersion === 2) {
+    if (p.engineVersion !== 1 || !p.applicability || !p.stateVariables || !p.releases) errors.push('Version 2 requires engine, applicability, releases and state definitions')
+    errors.push(...stateErrors(p.stateVariables ?? [], p.rules))
+    unique(p.releases ?? [], 'release')
+    for (const release of p.releases ?? []) if (release.variantId !== p.variantId) errors.push('Software release belongs to another edition')
+    const releases = new Set(p.releases?.map(r => r.id))
+    for (const a of [p.applicability, ...p.claims.map(c => c.applicability)]) for (const id of a?.releaseIds ?? []) if (!releases.has(id)) errors.push(`Missing software release ${id}`)
+    for (const c of p.claims) {
+      if (!c.applicability || !c.citations?.some(e => e.relation === 'supports')) errors.push(`Precise supporting evidence required: ${c.id}`)
+      if (p.applicability?.status === 'releases' && c.applicability?.status === 'releases' && p.applicability.releaseIds.some(id => !c.applicability!.releaseIds.includes(id))) errors.push(`Claim ${c.id} does not cover the pack releases`)
+      for (const e of c.citations ?? []) {
+        const source = p.sources.find(s => s.id === e.sourceId)
+        if (!c.sourceIds.includes(e.sourceId) || !source || source.revision !== e.sourceRevision) errors.push(`Stale or missing source revision for ${c.id}`)
+      }
+      for (const id of c.sourceIds) if (!c.citations?.some(e => e.sourceId === id)) errors.push(`Missing citation for ${id}`)
+    }
+    for (const r of p.rules.filter(r => r.repeatable || r.conditions || r.effects?.length)) {
+      const spec = { ruleId:r.id, shotId:r.shotId, prerequisites:r.prerequisites, outcome:r.outcome, repeatable:r.repeatable ?? false, conditions:r.conditions ?? {all:[],any:[]}, effects:r.effects ?? [], variables:p.stateVariables ?? [] }
+      if (!p.claims.some(c => r.claimIds.includes(c.id) && c.kind === 'recommendation' && canonical(c.ruleSpec) === canonical(spec))) errors.push(`Review the state behaviour for ${r.id}`)
+    }
+  }
   if (!p.image.rightsConfirmed) errors.push('Confirm reference image rights before publishing')
   if (p.shots.length < 10) errors.push('Annotate at least 10 shots')
   const shots = new Set(p.shots.map(s => s.id)), rules = new Set(p.rules.map(r => r.id)), sources = new Set(p.sources.map(s => s.id))
@@ -76,9 +116,11 @@ export function publicationErrors(input: unknown): string[] {
 export function editClaim(claim: Claim, patch: Pick<Claim, 'title' | 'body' | 'sourceIds' | 'software'>): Claim {
   return { ...claim, ...patch, revision: claim.revision + 1, status: 'pending', reviewedRevision: null, reviewNote: '' }
 }
-export function rankShots(pack: MachinePack, objective: 'scoring' | 'multiball', advanced: boolean, completed: string[]) {
+export function rankShots(pack: MachinePack, objective: 'scoring' | 'multiball', advanced: boolean, completed: string[], state: GameState = {}, now = Date.now()) {
   const strategy = pack.strategies.find(s => s.objective === objective && s.level === (advanced && objective === 'scoring' ? 'advanced' : 'simple'))
-  return pack.rules.filter(r => strategy?.steps.includes(r.id) && !completed.includes(r.outcome) && r.prerequisites.every(p => completed.includes(p)))
+  const approved = new Set(pack.claims.filter(c => c.status === 'approved' && c.revision === c.reviewedRevision && c.variantId === pack.variantId).map(c => c.id))
+  if (!strategy?.claimIds.every(id => approved.has(id))) return []
+  return pack.rules.filter(r => strategy.steps.includes(r.id) && (r.repeatable || !completed.includes(r.outcome)) && r.prerequisites.every(p => completed.includes(p)) && r.claimIds.every(id => approved.has(id)) && conditionsMet(r.conditions, state, now))
     .map(rule => { const shot = pack.shots.find(s => s.id === rule.shotId)!; return { rule, shot, score: rule.value * (advanced ? 4 : 2) + rule.progression * (objective === 'multiball' ? 5 : 2) - shot.risk * (advanced ? 1 : 3) - shot.difficulty * (advanced ? 1 : 2) } })
     .sort((a, b) => b.score - a.score || a.rule.id.localeCompare(b.rule.id))
 }

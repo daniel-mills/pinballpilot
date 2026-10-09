@@ -11,5 +11,5 @@ import javax.inject.Singleton
 
 @Module @InstallIn(SingletonComponent::class) object AppModule {
     @Provides @Singleton fun database(@ApplicationContext context: Context): PilotDatabase =
-        Room.databaseBuilder(context, PilotDatabase::class.java, "pilot.db").build()
+        Room.databaseBuilder(context, PilotDatabase::class.java, "pilot.db").addMigrations(PilotDatabase.MIGRATION_1_2).build()
 }

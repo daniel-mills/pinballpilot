@@ -81,4 +81,4 @@ The agreed MVP is **not yet ready for tester release**. Remaining external gates
 
 Current implementation limits are tracked in [implementation status](docs/STATUS.md), including the structured JSON rules editor, game-grouping corrections and sync conflict behaviour. The A$60 limit is enforced for configured app requests; infrastructure/provider billing still needs reconciliation before a real monetary guarantee.
 
-See [agreed product decisions](docs/PRODUCT.md), [architecture](docs/ARCHITECTURE.md), [content provenance](docs/CONTENT-LICENSES.md) and [weekly machine validation](docs/HARDWARE-VALIDATION.md).
+See [agreed product decisions](docs/PRODUCT.md), [architecture](docs/ARCHITECTURE.md), [versioned knowledge and game state](docs/DATA-MODEL.md), [content provenance](docs/CONTENT-LICENSES.md) and [weekly machine validation](docs/HARDWARE-VALIDATION.md).

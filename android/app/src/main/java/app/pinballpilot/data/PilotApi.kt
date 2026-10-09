@@ -6,6 +6,8 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import app.pinballpilot.BuildConfig
+import app.pinballpilot.domain.GameState
+import kotlinx.serialization.encodeToString
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -79,9 +81,9 @@ import javax.inject.Singleton
             return result
         }
     }
-    suspend fun ask(variantId: String, question: String, confirmedOutcomes:List<String> = emptyList()): JsonObject = withContext(Dispatchers.IO) {
+    suspend fun ask(variantId: String, question: String, confirmedOutcomes:List<String> = emptyList(), packVersion:Int? = null, state:GameState = emptyMap()): JsonObject = withContext(Dispatchers.IO) {
         check(configured) { "AI is not connected yet. Use the downloaded scoring or multiball guide." }
-        request("/functions/v1/pilot/coach", buildJsonObject { put("variantId", variantId); put("question", question); put("confirmedOutcomes",JsonArray(confirmedOutcomes.map(::JsonPrimitive)));put("requestId", java.util.UUID.randomUUID().toString()) }, token())
+        request("/functions/v1/pilot/coach", buildJsonObject { put("variantId", variantId); put("question", question); put("confirmedOutcomes",JsonArray(confirmedOutcomes.map(::JsonPrimitive))); packVersion?.let { put("packVersion",it) }; put("state",Json.parseToJsonElement(Json.encodeToString(state)));put("requestId", java.util.UUID.randomUUID().toString()) }, token())
     }
     suspend fun analyse(photos: List<String>, gameId: String? = null): JsonObject = withContext(Dispatchers.IO) {
         check(configured) { "Photo analysis needs a connected backend. You can search for a machine manually." }
@@ -97,13 +99,22 @@ import javax.inject.Singleton
         }
         result
     }
+    suspend fun scan(variantId: String, packVersion: Int, photos: List<String>): app.pinballpilot.domain.ScanResult = withContext(Dispatchers.IO) {
+        check(configured) { "Scanning needs an online connection to your backend. You can update progress manually." }
+        val result=request("/functions/v1/pilot/scan", buildJsonObject {
+            put("variantId",variantId); put("packVersion",packVersion)
+            put("photos",JsonArray(photos.map(::JsonPrimitive))); put("requestId",java.util.UUID.randomUUID().toString())
+        }, token())
+        // Scan images are transient: only player-confirmed readings enter the game history.
+        Json.decodeFromJsonElement<app.pinballpilot.domain.ScanResult>(result)
+    }
     private fun get(path:String):ByteArray {
         check(configured) {"Connect the backend and sign in to download packs."}
         val req=Request.Builder().url(BuildConfig.SUPABASE_URL.trimEnd('/')+path).header("apikey",BuildConfig.SUPABASE_ANON_KEY).header("Authorization","Bearer ${token()}").build()
         return http.newCall(req).execute().use {check(it.isSuccessful){"Download unavailable. Existing packs still work."};val body=it.body?:error("Empty download");check(body.contentLength()<=20_000_000){"Download too large"};body.bytes().also{data->check(data.size<=20_000_000){"Download too large"}}}
     }
     suspend fun catalogue():JsonArray=withContext(Dispatchers.IO){Json.parseToJsonElement(String(get("/functions/v1/pilot/catalogue"))).jsonArray}
-    suspend fun pack(id:String):String=withContext(Dispatchers.IO){String(get("/functions/v1/pilot/packs/${Uri.encode(id)}"))}
+    suspend fun pack(id:String,version:Int? = null):String=withContext(Dispatchers.IO){String(get("/functions/v1/pilot/packs/${Uri.encode(id)}"+(version?.let { "?version=$it" }?:"")))}
     suspend fun playfield(path:String):ByteArray=withContext(Dispatchers.IO){get("/storage/v1/object/authenticated/playfields/${path.split('/').joinToString("/"){Uri.encode(it)}}")}
     suspend fun sync(payload:JsonObject):JsonObject=withContext(Dispatchers.IO){check(configured){"Connect and sign in to sync private history."};request("/functions/v1/pilot/sync",payload,token())}
     suspend fun syncEvent(event: EventEntity) = withContext(Dispatchers.IO) {

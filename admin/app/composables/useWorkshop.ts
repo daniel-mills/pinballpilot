@@ -113,14 +113,24 @@ export function useWorkshop() {
       let offset:number|null=0
       while(offset!==null) {
         const data=await api(`research/knowledge/${encodeURIComponent(target.variantId)}?offset=${offset}`)
-        for(const c of data.claims) evidence.push(claimSchema.parse({id:c.id,variantId:c.variant_id,kind:c.kind,title:c.title,body:c.body,sourceIds:c.source_ids,status:c.status,revision:c.revision,reviewedRevision:c.reviewed_revision,software:c.software,reviewNote:c.review_note}))
-        for(const s of data.sources) references.set(s.id,sourceSchema.parse({id:s.id,title:s.title,url:s.url,kind:s.kind,locator:s.locator,accessedAt:s.accessed_at,notes:s.notes}))
+        for(const c of data.claims) evidence.push(claimSchema.parse({id:c.id,variantId:c.variant_id,kind:c.kind,title:c.title,body:c.body,sourceIds:c.source_ids,status:c.status,revision:c.revision,reviewedRevision:c.reviewed_revision,software:c.software,reviewNote:c.review_note,applicability:c.applicability,ruleSpec:c.rule_spec,citations:(data.evidence??[]).filter((e:any)=>e.claim_id===c.id&&e.claim_revision===c.revision).map((e:any)=>({sourceId:e.source_id,sourceRevision:e.source_revision,locator:e.locator,relation:e.relation}))}))
+        for(const s of data.sources) references.set(s.id,sourceSchema.parse({id:s.id,title:s.title,url:s.url,kind:s.kind,locator:s.locator,accessedAt:s.accessed_at,notes:s.notes,revision:s.revision,contentHash:s.content_hash}))
+        target.releases=(data.releases??[]).map((r:any)=>({id:r.id,variantId:r.variant_id,version:r.version,releasedAt:r.released_at}))
         offset=data.nextOffset
       }
       const merged=new Map(target.claims.map(c=>[c.id,c]));for(const c of evidence) if(c.status==='approved'||merged.has(c.id)) merged.set(c.id,c)
       target.claims=[...merged.values()];target.sources=[...references.values()]
       persist();notice.value='Latest evidence loaded into this draft. Check guide wording and any remaining review requirements, then save before publishing.'
     })
+  }
+  async function upgradePack() {
+    if(configured) { await loadReviewedEvidence(); if(failure.value) return }
+    pack.value=packSchema.parse({...pack.value,schemaVersion:2,engineVersion:1,stateVariables:pack.value.stateVariables??[],releases:pack.value.releases??[],applicability:pack.value.applicability??{status:'unknown',releaseIds:[],settings:''}})
+    if(!configured) {
+      pack.value.sources=pack.value.sources.map(s=>({...s,revision:s.revision??1,contentHash:s.contentHash??null}))
+      pack.value.claims=pack.value.claims.map(c=>({...c,applicability:c.applicability??{status:'unknown',releaseIds:[],settings:''},citations:c.citations??c.sourceIds.map(id=>{const source=pack.value.sources.find(s=>s.id===id);return {sourceId:id,sourceRevision:source?.revision??1,locator:source?.locator??'',relation:'supports' as const}})}))
+    }
+    persist();notice.value='Draft upgraded to version 2. Software applicability remains unknown until researched. Any new state behaviour requires individual review.'
   }
   async function queueResearch(query: string) {
     await run(async () => {
@@ -137,5 +147,5 @@ export function useWorkshop() {
       limit.value = value; persist(); notice.value = configured ? 'Monthly cap updated.' : 'Sandbox cap saved. Live billing is not connected.'
     })
   }
-  return { api, loadReviewedEvidence, configured, connected, pack, drafts,imagePreview,choosePack,uploadImage, claims, sources, jobs, research, limit, notice, failure, busy, published, researchRequest, initialise, signIn, review, savePack, publish, queueResearch, saveBudget, persist }
+  return { api, upgradePack, loadReviewedEvidence, configured, connected, pack, drafts,imagePreview,choosePack,uploadImage, claims, sources, jobs, research, limit, notice, failure, busy, published, researchRequest, initialise, signIn, review, savePack, publish, queueResearch, saveBudget, persist }
 }

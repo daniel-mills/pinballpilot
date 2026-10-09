@@ -60,11 +60,13 @@ import javax.inject.Inject
     var question by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var showCamera by remember { mutableStateOf(false) }
+    var scanCamera by remember { mutableStateOf(false) }
     var scoreFor by remember { mutableStateOf<app.pinballpilot.data.GameEntity?>(null) }
     var score by remember { mutableStateOf("") }
+    var progressFor by remember { mutableStateOf<app.pinballpilot.domain.StateVariable?>(null) }
     val voiceStatus by CoachVoiceService.status.collectAsStateWithLifecycle()
     val narrationStatus by coach.narrator.status.collectAsStateWithLifecycle()
-    val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { allowed -> if(allowed) showCamera=true else coach.message("Camera permission is needed for photos. Manual machine search still works.") }
+    val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { allowed -> if(allowed) showCamera=true else {coach.dismissScan();coach.message("Camera permission is needed to scan. You can search and update progress manually.")} }
     val microphone = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
         if(permissions[Manifest.permission.RECORD_AUDIO]==true) context.startForegroundService(Intent(context,CoachVoiceService::class.java))
         else coach.message("Microphone permission is needed for hands-free mode.")
@@ -77,8 +79,10 @@ import javax.inject.Inject
         catch(_: Exception) { coach.message("Speech recognition is unavailable on this phone. Type your question below.") }
     }
     LaunchedEffect(page) { coach.active(page=="Guide") }
+    LaunchedEffect(s.scanCapture) { if(s.scanCapture) {scanCamera=true;cameraPermission.launch(Manifest.permission.CAMERA)} }
+    progressFor?.let { def -> ProgressEditor(def,s.gameState[def.id]?.value,{coach.confirmState(def.id,it)},{progressFor=null}) }
     Scaffold(
-        topBar={TopAppBar(title={Text("Pinball Pilot",fontWeight=FontWeight.Bold)},actions={IconButton(onClick={cameraPermission.launch(Manifest.permission.CAMERA)}) {Icon(Icons.Default.PhotoCamera,"Identify or check progress")}})},
+        topBar={TopAppBar(title={Text("Pinball Pilot",fontWeight=FontWeight.Bold)},actions={IconButton(onClick={scanCamera=false;cameraPermission.launch(Manifest.permission.CAMERA)},enabled=!s.busy) {Icon(Icons.Default.PhotoCamera,"Identify a machine")}})},
         bottomBar={NavigationBar { listOf("Machines" to Icons.Default.SportsEsports,"Guide" to Icons.AutoMirrored.Filled.MenuBook,"History" to Icons.Default.History,"Profile" to Icons.Default.Person).forEach { (label,icon) -> NavigationBarItem(selected=page==label,onClick={page=label},icon={Icon(icon,label)},label={Text(label)}) } }},
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
@@ -100,18 +104,31 @@ import javax.inject.Inject
                         item { Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) { FilterChip(selected=s.objective=="scoring",onClick={coach.objective("scoring")},label={Text("Scoring plan")});FilterChip(selected=s.objective=="multiball",onClick={coach.objective("multiball")},label={Text("Multiball route")}) } }
                         if(s.objective=="scoring") item { Row(verticalAlignment=Alignment.CenterVertically) {Text("Advanced strategy",Modifier.weight(1f));Switch(s.advanced,coach::advanced)} }
                         item { Card(colors=CardDefaults.cardColors(containerColor=Color(0xFF3A342A))) { Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                            Text(if(s.next==null) "Guide complete" else "Your next shot",color=MaterialTheme.colorScheme.primary,style=MaterialTheme.typography.labelLarge)
-                            Text(s.next?.rule?.instruction ?: "You’ve followed the whole route.",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.SemiBold)
-                            Text(s.next?.rule?.why ?: "Start a fresh game to practise again. Your learning history stays with you.")
+                            Text(if(s.next==null) "Check your progress" else "Your next shot",color=MaterialTheme.colorScheme.primary,style=MaterialTheme.typography.labelLarge)
+                            Text(s.next?.rule?.instruction ?: "No verified next step is available.",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.SemiBold)
+                            Text(s.next?.rule?.why ?: "The route may be complete, or more progress information may be needed. Check the machine before continuing.")
                             Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) { if(s.next!=null) Button(onClick=coach::complete,enabled=!s.busy) {Text("Done — next step")};OutlinedButton(onClick=coach::speakNext) {Icon(Icons.Default.VolumeUp,null);Spacer(Modifier.width(6.dp));Text("Listen")} }
                         } } }
+                        item { OutlinedButton(onClick=coach::beginScan,enabled=!s.busy,modifier=Modifier.fillMaxWidth()) {Icon(Icons.Default.PhotoCamera,null);Spacer(Modifier.width(8.dp));Text("Scan between balls")} }
                         item { PlayfieldViewer(pack,s.selected,setOfNotNull(s.next?.shot?.id),coach::select) }
+                        if (pack.stateVariables.isNotEmpty()) item {
+                            Card { Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                                Text("Current progress",style=MaterialTheme.typography.titleMedium)
+                                for(def in pack.stateVariables.filter { it.type != "timer" }) {
+                                    val cell=s.gameState[def.id]
+                                    val known=cell?.value
+                                    val label=if(known==null||known==JsonNull||cell.origin=="inferred") "Unknown" else known.content
+                                    TextButton(onClick={progressFor=def},enabled=!s.busy) {Text("${def.label}: $label")}
+                                }
+                            } }
+                        }
                         s.selected?.let { id -> pack.shots.find { it.id==id }?.let { shot -> item { Card {Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {Text(shot.name,style=MaterialTheme.typography.titleLarge);Text(shot.description);pack.rules.filter { it.shotId==id }.forEach {rule -> Text(rule.instruction,fontWeight=FontWeight.Bold);Text(rule.why); if(rule.prerequisites.isNotEmpty()) Text("Requires: ${rule.prerequisites.joinToString { outcome -> pack.rules.find { it.outcome==outcome }?.instruction ?: outcome }}",color=MaterialTheme.colorScheme.secondary) }} } } } }
                         item { Text("Explore the shots",style=MaterialTheme.typography.titleLarge) }
                         items(pack.shots) { shot -> ListItem(headlineContent={Text(shot.name)},supportingContent={Text(shot.type)},trailingContent={Icon(Icons.Default.TouchApp,null)},modifier=Modifier.clickable{coach.select(shot.id)},colors=ListItemDefaults.colors(containerColor=if(shot.id==s.selected) Color(0xFF344154) else Color.Transparent)) }
                         item { OutlinedTextField(question,{question=it},label={Text("Ask about this machine")},modifier=Modifier.fillMaxWidth()) }
                         item { Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) { Button(onClick={coach.ask(question)},enabled=question.isNotBlank()&&!s.busy) {Text("Ask coach")};OutlinedButton(onClick=::tapToTalk) {Icon(Icons.Default.Mic,null);Text("Talk")} } }
                         if(s.answer.isNotBlank()) item { Card {Text(s.answer,Modifier.padding(18.dp))} }
+                        item { Row { TextButton(onClick=coach::endBall,enabled=!s.busy) {Text("Ball ended")}; TextButton(onClick=coach::undoProgress,enabled=!s.busy) {Text("Undo progress")} } }
                         item { TextButton(onClick=coach::newGame) {Text("Start a fresh game / correct grouping")} }
                     }
                 }
@@ -136,7 +153,10 @@ import javax.inject.Inject
             }
         }
     }
-    if(showCamera) CameraCapture(onClose={showCamera=false},onPhotos={showCamera=false;coach.analyse(it)})
+    if(showCamera) CameraCapture(progressScan=scanCamera,onClose={showCamera=false;if(scanCamera) coach.dismissScan()},onPhotos={showCamera=false;if(scanCamera) coach.scanCaptured(it) else coach.analyse(it)})
+    s.scanResult?.let { result -> s.pack?.let { pack ->
+        ScanReview(pack,result,s.now-(s.scanContext?.capturedAt?:0)>120_000,s.busy,coach::confirmScan,coach::beginScan,coach::dismissScan,error=s.message)
+    } }
     if(scoreFor!=null) AlertDialog(onDismissRequest={scoreFor=null},title={Text("Final score")},text={OutlinedTextField(score,{score=it.filter(Char::isDigit)},label={Text("Score")})},confirmButton={TextButton(onClick={score.toLongOrNull()?.let{coach.saveScore(scoreFor!!,it);scoreFor=null}},enabled=score.toLongOrNull()!=null){Text("Save")}},dismissButton={TextButton(onClick={scoreFor=null}) {Text("Cancel")}})
     s.observation?.let { observation ->
         AlertDialog(onDismissRequest=coach::dismissObservation,title={Text("Check the photo findings")},text={

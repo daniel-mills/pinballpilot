@@ -72,6 +72,9 @@ function saveJson() {
           <p class="claim-body">{{ claim.body }}</p>
           <div v-for="source in sourcesFor(claim)" :key="source.id" class="source-line"><v-icon size="17" :icon="source.kind==='manufacturer'?'mdi-factory':'mdi-book-open-outline'" class="mr-2"/><a :href="source.url" target="_blank" rel="noopener noreferrer">{{ source.title }}</a><span class="muted"> · {{ source.locator }}</span></div>
           <p class="muted text-caption mt-3">Software: {{ claim.software }}</p>
+          <p v-if="claim.applicability" class="muted">Applicability: {{claim.applicability.status}} · {{claim.applicability.releaseIds.join(', ')}} · {{claim.applicability.settings}}</p>
+          <details v-if="claim.ruleSpec"><summary>State behaviour included in this review</summary><pre style="white-space:pre-wrap">{{JSON.stringify(claim.ruleSpec,null,2)}}</pre></details>
+          <EvidenceHistory :claim-id="claim.id"/>
           <div class="review-controls"><v-text-field v-model="notes[claim.id]" label="Review note" placeholder="What did you verify?" hide-details/><v-btn color="success" variant="tonal" :disabled="busy || claim.status==='approved'" @click="w.review(claim,'approved',notes[claim.id] || '')">Approve</v-btn><v-btn color="error" variant="text" :disabled="busy || claim.status==='rejected'" @click="w.review(claim,'rejected',notes[claim.id] || '')">Reject</v-btn></div>
           <p v-if="claim.reviewNote" class="muted mt-3">Review: {{ claim.reviewNote }}</p>
         </article>
@@ -90,6 +93,7 @@ function saveJson() {
       </template>
 
       <template v-else-if="section==='Rules & guides'">
+        <KnowledgeVersions/>
         <v-btn v-if="connected" variant="tonal" :loading="busy" @click="w.loadReviewedEvidence">Load latest evidence into draft</v-btn>
         <header class="page-heading"><div><h1>Turn shots into a plan.</h1><p>{{ pack.name }} · {{ pack.edition }}. Physical shots, rule prerequisites and recommendations stay separate.</p></div><v-btn variant="tonal" @click="draftJson=JSON.stringify(pack,null,2);showJson=true">Edit pack JSON</v-btn></header>
         <v-card v-for="guide in pack.strategies" :key="guide.id" class="pa-6 mb-5"><v-chip size="small" variant="tonal" color="secondary" class="mb-3">{{ guide.level }} {{ guide.objective }}</v-chip><h2>{{ guide.title }}</h2><v-list bg-color="transparent"><v-list-item v-for="(step,i) in guide.steps" :key="step" class="px-0 py-3"><template #prepend><v-avatar size="30" color="primary" variant="tonal" class="mr-4">{{ i+1 }}</v-avatar></template><v-list-item-title class="text-wrap">{{ pack.rules.find(r=>r.id===step)?.instruction }}</v-list-item-title><p class="muted text-body-2 mt-1">{{ pack.rules.find(r=>r.id===step)?.why }}</p></v-list-item></v-list></v-card>

@@ -1,9 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 import { ApiError, createHandler, type Identity, type Services } from './handler.ts'
-import { modelJson, coachPrompt, identifyInstructions } from './provider.ts'
+import { modelJson, coachPrompt, identifyInstructions, scanPrompt } from './provider.ts'
 import { packSchema, publicationErrors, type MachinePack } from '../../../shared/contracts.ts'
 import { runResearch } from './research.ts'
 import { createConnectorServices } from './connector.ts'
+import { claimDto, sourceDto, evidenceFor } from './knowledge.ts'
 
 const env=(key:string)=>Deno.env.get(key) ?? ''
 const url=env('SUPABASE_URL'), anon=env('SUPABASE_ANON_KEY')
@@ -11,7 +12,6 @@ const root=createClient(url,env('SUPABASE_SERVICE_ROLE_KEY'),{auth:{persistSessi
 const provider={key:env('OPENAI_API_KEY'),model:env('AI_MODEL')}
 function userClient(token:string) { return createClient(url,anon,{global:{headers:{Authorization:`Bearer ${token}`}},auth:{persistSession:false}}) }
 function checked<T>(result:{data:T;error:unknown}): T {if(result.error) throw new ApiError(503,'Database operation failed. Reload and try again.');return result.data}
-const claimDto=(c:Record<string,unknown>)=>({id:c.id,variantId:c.variant_id,kind:c.kind,title:c.title,body:c.body,sourceIds:c.source_ids,status:c.status,revision:c.revision,reviewedRevision:c.reviewed_revision,reviewNote:c.review_note,software:c.software})
 
 const services: Services={
   connector:createConnectorServices(root),
@@ -27,8 +27,10 @@ const services: Services={
     const seen=new Set<string>()
     return (rows??[]).filter(r=>{if(seen.has(r.variant_id))return false;seen.add(r.variant_id);return true}).map(r=>({variantId:r.variant_id,version:r.version,name:r.payload.name,edition:r.payload.edition,demo:r.payload.demo}))
   },
-  async latestPack(id) {
-    const row=checked(await root.from('machine_pack_versions').select('payload').eq('variant_id',id).order('version',{ascending:false}).limit(1).maybeSingle())
+  async latestPack(id, version) {
+    let query=root.from('machine_pack_versions').select('payload').eq('variant_id',id)
+    if(version!==undefined) query=query.eq('version',version)
+    const row=checked(await query.order('version',{ascending:false}).limit(1).maybeSingle())
     return row ? packSchema.parse(row.payload) : null
   },
   async workspace() {
@@ -38,8 +40,18 @@ const services: Services={
     const sources=checked(await root.from('knowledge_sources').select('*'))
     const jobs=checked(await root.from('research_jobs').select('id,query,state,error').order('created_at',{ascending:false}).limit(20))
     const drafts=checked(await root.from('pack_drafts').select('payload'))
-    return {claims:(claims??[]).map(claimDto),sources:(sources??[]).map(s=>({id:s.id,title:s.title,url:s.url,kind:s.kind,locator:s.locator,accessedAt:s.accessed_at,notes:s.notes})),jobs:jobs??[],drafts:(drafts??[]).map(d=>d.payload),pack:pack?.payload,budget:{limitMicroAud:budget.limit_micro_aud,onlineEnabled:budget.online_enabled,infrastructureMicroAud:budget.infrastructure_micro_aud}}
+    const evidence=await evidenceFor(root,(claims??[]).map(c=>c.id))
+    return {claims:(claims??[]).map(c=>claimDto(c,evidence)),sources:(sources??[]).map(sourceDto),jobs:jobs??[],drafts:(drafts??[]).map(d=>d.payload),pack:pack?.payload,budget:{limitMicroAud:budget.limit_micro_aud,onlineEnabled:budget.online_enabled,infrastructureMicroAud:budget.infrastructure_micro_aud}}
   },
+  async history(id) {
+    const revisions=checked(await root.from('claim_revisions').select('*').eq('claim_id',id).order('revision',{ascending:false}).limit(100))
+    const reviews=checked(await root.from('review_events').select('*').eq('claim_id',id).order('created_at',{ascending:false}).limit(200))
+    const evidence=await evidenceFor(root,[id],false)
+    const ids=[...new Set(evidence.map(e=>e.source_id))]
+    const sources=ids.length?checked(await root.from('source_revisions').select('*').in('source_id',ids)):[]
+    return {revisions,reviews,evidence,sources}
+  },
+  async release(body) { checked(await root.from('software_releases').insert({id:body.id,variant_id:body.variantId,version:body.version,released_at:body.releasedAt})) },
   async review(b,actor) {checked(await root.rpc('review_claim',{p_id:b.id,p_revision:b.revision,p_status:b.status,p_note:b.reviewNote,p_reviewer:actor}))},
   async saveDraft(pack) { checked(await root.from('pack_drafts').upsert({variant_id:pack.variantId,payload:pack},{onConflict:'variant_id'})) },
   async publish(id,version,actor) {
@@ -65,8 +77,9 @@ const services: Services={
     if(!provider.key||!provider.model||!Number.isSafeInteger(bound)||bound<=0||env('COST_BOUNDS_VERIFIED')!=='true') return false
     return checked(await root.rpc('reserve_budget',{p_request_id:requestId,p_amount:bound,p_kind:kind}))===true
   },
-  async coach(pack,question,confirmedOutcomes) {const p=coachPrompt(pack,question,confirmedOutcomes);return modelJson(provider,p.instructions,p.prompt)},
+  async coach(pack,question,confirmedOutcomes,state) {const p=coachPrompt(pack,question,confirmedOutcomes,state);return modelJson(provider,p.instructions,p.prompt)},
   async identify(photos) {return modelJson(provider,identifyInstructions,'Inspect these pinball photos. Return the specified JSON object.',photos)},
+  async scan(pack,photos) {const p=scanPrompt(pack);return modelJson(provider,p.instructions,p.prompt,photos)},
   async sync(body,actor,token) {
     const client=userClient(token)
     const now=Date.now()
@@ -74,21 +87,21 @@ const services: Services={
       if(game.updatedAt>now+300000 || game.startedAt>game.updatedAt) throw new ApiError(400,'Game timestamps are invalid. Check your device clock.')
       checked(await client.rpc('sync_game',{p_game:game}))
     }
-    if(body.events.length) checked(await client.from('player_activity').upsert(body.events.map(e=>({id:e.id,owner_id:actor.id,game_id:e.gameId,timestamp:new Date(e.timestamp).toISOString(),kind:e.kind,text:e.text})),{onConflict:'id',ignoreDuplicates:true}))
+    if(body.events.length) checked(await client.from('player_activity').upsert(body.events.map(e=>({id:e.id,owner_id:actor.id,game_id:e.gameId,timestamp:new Date(e.timestamp).toISOString(),kind:e.kind,text:e.text,payload:e.payload??{}})),{onConflict:'id',ignoreDuplicates:true}))
     const preferences=checked(await client.from('player_preferences').select('*').eq('owner_id',actor.id).maybeSingle())
     const learned=new Map<string,unknown>()
     for(const l of [...(preferences?.learning?.items??[]),...body.learning]) learned.set(`${l.variantId}:${l.outcome}`,l)
     const favourites=[...new Set([...(preferences?.favourites??[]),...body.favourites])]
     checked(await client.from('player_preferences').upsert({owner_id:actor.id,learning:{items:[...learned.values()]},favourites}))
     const games=checked(await client.from('player_games').select('*').order('updated_at',{ascending:false}).limit(500))
-    return {games:(games??[]).map(g=>({id:g.id,variantId:g.variant_id,startedAt:Date.parse(g.started_at),updatedAt:Date.parse(g.updated_at),score:g.score,ended:g.ended,completed:g.completed})),learning:[...learned.values()],favourites}
+    return {games:(games??[]).map(g=>({id:g.id,variantId:g.variant_id,startedAt:Date.parse(g.started_at),updatedAt:Date.parse(g.updated_at),score:g.score,ended:g.ended,completed:g.completed,packVersion:g.pack_version,state:g.state})),learning:[...learned.values()],favourites}
   },
   async activity(body,actor,token) {
     // Deliberately use the player's JWT, not service-role access, for private writes.
     const client=userClient(token)
     const game=checked(await client.from('player_games').select('id').eq('id',body.gameId).maybeSingle())
     if(!game) checked(await client.from('player_games').insert({id:body.gameId,owner_id:actor.id,variant_id:'unknown',started_at:new Date(body.timestamp).toISOString()}))
-    checked(await client.from('player_activity').upsert({id:body.id,owner_id:actor.id,game_id:body.gameId,timestamp:new Date(body.timestamp).toISOString(),kind:body.kind,text:body.text},{onConflict:'id'}))
+    checked(await client.from('player_activity').upsert({id:body.id,owner_id:actor.id,game_id:body.gameId,timestamp:new Date(body.timestamp).toISOString(),kind:body.kind,text:body.text},{onConflict:'id',ignoreDuplicates:true}))
   },
 }
 Deno.serve(createHandler(services,env('ADMIN_ORIGIN')||'http://localhost:3000'))
