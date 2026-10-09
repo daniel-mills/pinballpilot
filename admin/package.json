@@ -1,0 +1,8 @@
+{
+  "name": "@pinballpilot/admin",
+  "private": true,
+  "type": "module",
+  "scripts": {"dev": "nuxt dev --host 127.0.0.1", "build": "nuxt build", "preview": "nuxt preview", "typecheck": "nuxt typecheck", "postinstall": "nuxt prepare"},
+  "dependencies": {"nuxt": "4.6.0", "vue": "3.5.43", "vuetify": "3.13.6", "@mdi/font": "7.4.47", "vuetify-nuxt-module": "0.19.3"},
+  "devDependencies": {"vue-tsc": "3.1.8", "typescript": "5.9.3"}
+}

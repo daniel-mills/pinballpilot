@@ -1,0 +1,573 @@
+{
+  "schemaVersion": 1,
+  "variantId": "workshop-demo",
+  "version": 1,
+  "name": "Workshop table",
+  "edition": "Fictional demonstration",
+  "manufacturer": "Pinball Pilot",
+  "demo": true,
+  "image": {
+    "path": "workshop.svg",
+    "license": "CC0-1.0 — original schematic created for Pinball Pilot",
+    "rightsConfirmed": true,
+    "width": 600,
+    "height": 1100
+  },
+  "shots": [
+    {
+      "id": "left-ramp",
+      "name": "Left ramp",
+      "type": "ramp",
+      "geometry": {
+        "point": {
+          "x": 0.28,
+          "y": 0.34
+        }
+      },
+      "description": "Left ramp on the fictional Workshop table. Tap a guide to see its role.",
+      "difficulty": 0.2,
+      "risk": 0.15
+    },
+    {
+      "id": "right-ramp",
+      "name": "Right ramp",
+      "type": "ramp",
+      "geometry": {
+        "point": {
+          "x": 0.73,
+          "y": 0.35
+        }
+      },
+      "description": "Right ramp on the fictional Workshop table. Tap a guide to see its role.",
+      "difficulty": 0.35,
+      "risk": 0.28
+    },
+    {
+      "id": "left-orbit",
+      "name": "Left orbit",
+      "type": "orbit",
+      "geometry": {
+        "point": {
+          "x": 0.15,
+          "y": 0.24
+        }
+      },
+      "description": "Left orbit on the fictional Workshop table. Tap a guide to see its role.",
+      "difficulty": 0.5,
+      "risk": 0.41000000000000003
+    },
+    {
+      "id": "right-orbit",
+      "name": "Right orbit",
+      "type": "orbit",
+      "geometry": {
+        "point": {
+          "x": 0.85,
+          "y": 0.24
+        }
+      },
+      "description": "Right orbit on the fictional Workshop table. Tap a guide to see its role.",
+      "difficulty": 0.6499999999999999,
+      "risk": 0.15
+    },
+    {
+      "id": "drop-bank",
+      "name": "Drop targets",
+      "type": "target",
+      "geometry": {
+        "point": {
+          "x": 0.42,
+          "y": 0.46
+        },
+        "polygon": [
+          {
+            "x": 0.34,
+            "y": 0.43
+          },
+          {
+            "x": 0.5,
+            "y": 0.43
+          },
+          {
+            "x": 0.5,
+            "y": 0.49
+          },
+          {
+            "x": 0.34,
+            "y": 0.49
+          }
+        ]
+      },
+      "description": "Drop targets on the fictional Workshop table. Tap a guide to see its role.",
+      "difficulty": 0.35,
+      "risk": 0.28
+    },
+    {
+      "id": "lock",
+      "name": "Ball lock",
+      "type": "lock",
+      "geometry": {
+        "point": {
+          "x": 0.58,
+          "y": 0.26
+        }
+      },
+      "description": "Ball lock on the fictional Workshop table. Tap a guide to see its role.",
+      "difficulty": 0.35,
+      "risk": 0.41000000000000003
+    },
+    {
+      "id": "scoop",
+      "name": "Mode scoop",
+      "type": "scoop",
+      "geometry": {
+        "point": {
+          "x": 0.25,
+          "y": 0.55
+        }
+      },
+      "description": "Mode scoop on the fictional Workshop table. Tap a guide to see its role.",
+      "difficulty": 0.5,
+      "risk": 0.15
+    },
+    {
+      "id": "bullseye",
+      "name": "Bullseye",
+      "type": "target",
+      "geometry": {
+        "point": {
+          "x": 0.5,
+          "y": 0.16
+        }
+      },
+      "description": "Bullseye on the fictional Workshop table. Tap a guide to see its role.",
+      "difficulty": 0.6499999999999999,
+      "risk": 0.28
+    },
+    {
+      "id": "spinner",
+      "name": "Spinner lane",
+      "type": "lane",
+      "geometry": {
+        "point": {
+          "x": 0.77,
+          "y": 0.51
+        }
+      },
+      "description": "Spinner lane on the fictional Workshop table. Tap a guide to see its role.",
+      "difficulty": 0.2,
+      "risk": 0.41000000000000003
+    },
+    {
+      "id": "bumpers",
+      "name": "Bumpers",
+      "type": "bumper",
+      "geometry": {
+        "point": {
+          "x": 0.39,
+          "y": 0.25
+        }
+      },
+      "description": "Bumpers on the fictional Workshop table. Tap a guide to see its role.",
+      "difficulty": 0.35,
+      "risk": 0.15
+    },
+    {
+      "id": "left-inlane",
+      "name": "Left inlane",
+      "type": "lane",
+      "geometry": {
+        "point": {
+          "x": 0.2,
+          "y": 0.74
+        }
+      },
+      "description": "Left inlane on the fictional Workshop table. Tap a guide to see its role.",
+      "difficulty": 0.5,
+      "risk": 0.28
+    },
+    {
+      "id": "right-inlane",
+      "name": "Right inlane",
+      "type": "lane",
+      "geometry": {
+        "point": {
+          "x": 0.8,
+          "y": 0.74
+        }
+      },
+      "description": "Right inlane on the fictional Workshop table. Tap a guide to see its role.",
+      "difficulty": 0.6499999999999999,
+      "risk": 0.41000000000000003
+    }
+  ],
+  "rules": [
+    {
+      "id": "ramp-build",
+      "shotId": "left-ramp",
+      "claimIds": [
+        "claim-ramp-build"
+      ],
+      "instruction": "Shoot the left ramp.",
+      "why": "This qualifies the ramp bonus and gives you a repeatable scoring route.",
+      "prerequisites": [],
+      "outcome": "ramp-ready",
+      "value": 0.5,
+      "progression": 0.5
+    },
+    {
+      "id": "ramp-collect",
+      "shotId": "right-ramp",
+      "claimIds": [
+        "claim-ramp-collect"
+      ],
+      "instruction": "Shoot the right ramp.",
+      "why": "The left ramp has qualified this bonus; the right ramp collects it.",
+      "prerequisites": [
+        "ramp-ready"
+      ],
+      "outcome": "ramp-bonus",
+      "value": 0.9,
+      "progression": 0.6
+    },
+    {
+      "id": "mode-qualify",
+      "shotId": "spinner",
+      "claimIds": [
+        "claim-mode-qualify"
+      ],
+      "instruction": "Shoot the spinner lane.",
+      "why": "This lights the mode scoop for an advanced scoring sequence.",
+      "prerequisites": [],
+      "outcome": "mode-ready",
+      "value": 0.6,
+      "progression": 0.4
+    },
+    {
+      "id": "mode-start",
+      "shotId": "scoop",
+      "claimIds": [
+        "claim-mode-start"
+      ],
+      "instruction": "Shoot the mode scoop.",
+      "why": "Starting the mode makes the bullseye award available.",
+      "prerequisites": [
+        "mode-ready"
+      ],
+      "outcome": "mode-active",
+      "value": 0.6,
+      "progression": 0.6
+    },
+    {
+      "id": "mode-finish",
+      "shotId": "bullseye",
+      "claimIds": [
+        "claim-mode-finish"
+      ],
+      "instruction": "Shoot the bullseye.",
+      "why": "With the mode active, this shot collects its scoring award.",
+      "prerequisites": [
+        "mode-active"
+      ],
+      "outcome": "mode-complete",
+      "value": 1,
+      "progression": 0.7
+    },
+    {
+      "id": "light-lock",
+      "shotId": "drop-bank",
+      "claimIds": [
+        "claim-light-lock"
+      ],
+      "instruction": "Complete the drop-target bank.",
+      "why": "This lights the ball lock, the first step toward multiball.",
+      "prerequisites": [],
+      "outcome": "lock-lit",
+      "value": 0.2,
+      "progression": 1
+    },
+    {
+      "id": "lock-one",
+      "shotId": "lock",
+      "claimIds": [
+        "claim-lock-one"
+      ],
+      "instruction": "Shoot the lit ball lock.",
+      "why": "This records your first lock toward multiball.",
+      "prerequisites": [
+        "lock-lit"
+      ],
+      "outcome": "one-locked",
+      "value": 0.3,
+      "progression": 1
+    },
+    {
+      "id": "lock-two",
+      "shotId": "lock",
+      "claimIds": [
+        "claim-lock-two"
+      ],
+      "instruction": "Shoot the ball lock again.",
+      "why": "The second lock brings you one step closer.",
+      "prerequisites": [
+        "one-locked"
+      ],
+      "outcome": "two-locked",
+      "value": 0.3,
+      "progression": 1
+    },
+    {
+      "id": "lock-three",
+      "shotId": "lock",
+      "claimIds": [
+        "claim-lock-three"
+      ],
+      "instruction": "Shoot the ball lock for the third time.",
+      "why": "The third lock starts this demonstration machine’s multiball.",
+      "prerequisites": [
+        "two-locked"
+      ],
+      "outcome": "multiball-active",
+      "value": 0.7,
+      "progression": 1
+    },
+    {
+      "id": "jackpot",
+      "shotId": "left-orbit",
+      "claimIds": [
+        "claim-jackpot"
+      ],
+      "instruction": "Shoot the left orbit.",
+      "why": "During multiball, the left orbit collects a jackpot.",
+      "prerequisites": [
+        "multiball-active"
+      ],
+      "outcome": "jackpot-collected",
+      "value": 1,
+      "progression": 0.8
+    }
+  ],
+  "strategies": [
+    {
+      "id": "simple-scoring",
+      "title": "Build a repeatable score",
+      "objective": "scoring",
+      "level": "simple",
+      "claimIds": [
+        "claim-guide"
+      ],
+      "steps": [
+        "ramp-build",
+        "ramp-collect"
+      ]
+    },
+    {
+      "id": "advanced-scoring",
+      "title": "Start and finish a mode",
+      "objective": "scoring",
+      "level": "advanced",
+      "claimIds": [
+        "claim-guide"
+      ],
+      "steps": [
+        "mode-qualify",
+        "mode-start",
+        "mode-finish"
+      ]
+    },
+    {
+      "id": "multiball",
+      "title": "Your route to multiball",
+      "objective": "multiball",
+      "level": "simple",
+      "claimIds": [
+        "claim-guide"
+      ],
+      "steps": [
+        "light-lock",
+        "lock-one",
+        "lock-two",
+        "lock-three",
+        "jackpot"
+      ]
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim-ramp-build",
+      "variantId": "workshop-demo",
+      "kind": "recommendation",
+      "title": "Build the ramp bonus",
+      "body": "Shoot the left ramp. This qualifies the ramp bonus and gives you a repeatable scoring route.",
+      "sourceIds": [
+        "original-demo"
+      ],
+      "status": "approved",
+      "revision": 1,
+      "reviewedRevision": 1,
+      "reviewNote": "Original fictional fixture; not authentic machine content.",
+      "software": "demo-1"
+    },
+    {
+      "id": "claim-ramp-collect",
+      "variantId": "workshop-demo",
+      "kind": "recommendation",
+      "title": "Collect the ramp bonus",
+      "body": "Shoot the right ramp. The left ramp has qualified this bonus; the right ramp collects it.",
+      "sourceIds": [
+        "original-demo"
+      ],
+      "status": "approved",
+      "revision": 1,
+      "reviewedRevision": 1,
+      "reviewNote": "Original fictional fixture; not authentic machine content.",
+      "software": "demo-1"
+    },
+    {
+      "id": "claim-mode-qualify",
+      "variantId": "workshop-demo",
+      "kind": "recommendation",
+      "title": "Qualify a mode",
+      "body": "Shoot the spinner lane. This lights the mode scoop for an advanced scoring sequence.",
+      "sourceIds": [
+        "original-demo"
+      ],
+      "status": "approved",
+      "revision": 1,
+      "reviewedRevision": 1,
+      "reviewNote": "Original fictional fixture; not authentic machine content.",
+      "software": "demo-1"
+    },
+    {
+      "id": "claim-mode-start",
+      "variantId": "workshop-demo",
+      "kind": "recommendation",
+      "title": "Start a mode",
+      "body": "Shoot the mode scoop. Starting the mode makes the bullseye award available.",
+      "sourceIds": [
+        "original-demo"
+      ],
+      "status": "approved",
+      "revision": 1,
+      "reviewedRevision": 1,
+      "reviewNote": "Original fictional fixture; not authentic machine content.",
+      "software": "demo-1"
+    },
+    {
+      "id": "claim-mode-finish",
+      "variantId": "workshop-demo",
+      "kind": "recommendation",
+      "title": "Finish the mode",
+      "body": "Shoot the bullseye. With the mode active, this shot collects its scoring award.",
+      "sourceIds": [
+        "original-demo"
+      ],
+      "status": "approved",
+      "revision": 1,
+      "reviewedRevision": 1,
+      "reviewNote": "Original fictional fixture; not authentic machine content.",
+      "software": "demo-1"
+    },
+    {
+      "id": "claim-light-lock",
+      "variantId": "workshop-demo",
+      "kind": "recommendation",
+      "title": "Light the lock",
+      "body": "Complete the drop-target bank. This lights the ball lock, the first step toward multiball.",
+      "sourceIds": [
+        "original-demo"
+      ],
+      "status": "approved",
+      "revision": 1,
+      "reviewedRevision": 1,
+      "reviewNote": "Original fictional fixture; not authentic machine content.",
+      "software": "demo-1"
+    },
+    {
+      "id": "claim-lock-one",
+      "variantId": "workshop-demo",
+      "kind": "recommendation",
+      "title": "Lock the first ball",
+      "body": "Shoot the lit ball lock. This records your first lock toward multiball.",
+      "sourceIds": [
+        "original-demo"
+      ],
+      "status": "approved",
+      "revision": 1,
+      "reviewedRevision": 1,
+      "reviewNote": "Original fictional fixture; not authentic machine content.",
+      "software": "demo-1"
+    },
+    {
+      "id": "claim-lock-two",
+      "variantId": "workshop-demo",
+      "kind": "recommendation",
+      "title": "Lock the second ball",
+      "body": "Shoot the ball lock again. The second lock brings you one step closer.",
+      "sourceIds": [
+        "original-demo"
+      ],
+      "status": "approved",
+      "revision": 1,
+      "reviewedRevision": 1,
+      "reviewNote": "Original fictional fixture; not authentic machine content.",
+      "software": "demo-1"
+    },
+    {
+      "id": "claim-lock-three",
+      "variantId": "workshop-demo",
+      "kind": "recommendation",
+      "title": "Start multiball",
+      "body": "Shoot the ball lock for the third time. The third lock starts this demonstration machine’s multiball.",
+      "sourceIds": [
+        "original-demo"
+      ],
+      "status": "approved",
+      "revision": 1,
+      "reviewedRevision": 1,
+      "reviewNote": "Original fictional fixture; not authentic machine content.",
+      "software": "demo-1"
+    },
+    {
+      "id": "claim-jackpot",
+      "variantId": "workshop-demo",
+      "kind": "recommendation",
+      "title": "Collect a jackpot",
+      "body": "Shoot the left orbit. During multiball, the left orbit collects a jackpot.",
+      "sourceIds": [
+        "original-demo"
+      ],
+      "status": "approved",
+      "revision": 1,
+      "reviewedRevision": 1,
+      "reviewNote": "Original fictional fixture; not authentic machine content.",
+      "software": "demo-1"
+    },
+    {
+      "id": "claim-guide",
+      "variantId": "workshop-demo",
+      "kind": "recommendation",
+      "title": "Demonstration guide sequences",
+      "body": "Fictional demo: use ramp bonus for simple scoring, the spinner/scoop/bullseye sequence for advanced scoring, or drop targets and three locks for multiball.",
+      "sourceIds": [
+        "original-demo"
+      ],
+      "status": "approved",
+      "revision": 1,
+      "reviewedRevision": 1,
+      "reviewNote": "Original fictional fixture.",
+      "software": "demo-1"
+    }
+  ],
+  "sources": [
+    {
+      "id": "original-demo",
+      "title": "Original fictional demonstration",
+      "url": "https://example.invalid/pinballpilot/demo",
+      "kind": "original",
+      "locator": "content/demo-pack.json",
+      "accessedAt": "2026-10-09",
+      "notes": "Original software test fixture. These rules do not describe a real pinball machine. Diagram created for this project, CC0."
+    }
+  ]
+}

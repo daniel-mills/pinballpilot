@@ -1,0 +1,62 @@
+insert into public.research_tokens(id,owner_id,label,token_hash,expires_at) values('40000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000003','Test connector',repeat('a',64),now()+interval '1 day');
+set role authenticated;
+set request.jwt.claim.sub='00000000-0000-4000-8000-000000000003';
+do $$ begin
+  begin perform token_hash from public.research_tokens; raise exception 'Editor could read token hashes'; exception when insufficient_privilege then null; end;
+  begin perform public.submit_research_proposal('40000000-0000-4000-8000-000000000001','{}'); raise exception 'Browser could submit through service RPC'; exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+do $$
+declare payload jsonb; result jsonb; retry jsonb; rejected boolean; saved_claim text; total integer; rev integer;
+begin
+  payload:='{"requestId":"50000000-0000-4000-8000-000000000001","variantId":"test-pro","targetClaimId":null,"baseRevision":null,"kind":"fact","title":"New evidence","body":"A sourced fact.","software":"unverified","rationale":"Fill a gap","uncertainty":"Check on machine","sources":[{"title":"Primary source","url":"https://example.com/manual","kind":"manufacturer","locator":"Page 12","accessedAt":"2026-10-09","notes":"Verify edition"}]}'::jsonb;
+  select count(*) into total from public.claims;
+  result:=public.submit_research_proposal('40000000-0000-4000-8000-000000000001',payload);
+  assert result->>'status'='pending','Proposal was not pending';
+  assert (select count(*) from public.claims)=total,'Submission changed canonical knowledge';
+  retry:=public.submit_research_proposal('40000000-0000-4000-8000-000000000001',payload);
+  assert retry->>'id'=result->>'id' and (retry->>'duplicate')::boolean,'Retry created duplicate';
+  rejected:=false;
+  begin perform public.submit_research_proposal('40000000-0000-4000-8000-000000000001',jsonb_set(payload,'{body}','"Changed request"')); exception when sqlstate 'P0002' then rejected:=true; end;
+  assert rejected,'Request ID allowed different content';
+  rejected:=false;
+  begin perform public.review_research_proposal((result->>'id')::uuid,'approved','Wrong role','00000000-0000-4000-8000-000000000001'); exception when insufficient_privilege then rejected:=true; end;
+  assert rejected,'Tester approved proposal';
+  perform public.review_research_proposal((result->>'id')::uuid,'approved','Verified source','00000000-0000-4000-8000-000000000003');
+  select applied_claim_id into saved_claim from public.research_proposals where id=(result->>'id')::uuid;
+  assert (select status='approved' and reviewed_revision=revision from public.claims where id=saved_claim),'Human approval not recorded';
+  assert exists(select 1 from public.review_events where claim_id=saved_claim),'Missing audit event';
+  assert (select count(*) from public.machine_pack_versions)=1,'Review published player content';
+  -- Two proposed corrections to the same revision: only the first can be applied.
+  payload:=payload||jsonb_build_object('targetClaimId',saved_claim,'baseRevision',1,'requestId','50000000-0000-4000-8000-000000000002','body','A corrected fact.');
+  result:=public.submit_research_proposal('40000000-0000-4000-8000-000000000001',payload);
+  retry:=public.submit_research_proposal('40000000-0000-4000-8000-000000000001',payload||'{"requestId":"50000000-0000-4000-8000-000000000003","body":"A conflicting correction."}'::jsonb);
+  perform public.review_research_proposal((result->>'id')::uuid,'approved','Correction verified','00000000-0000-4000-8000-000000000003');
+  assert (select revision=2 and body='A corrected fact.' and status='approved' from public.claims where id=saved_claim),'Correction failed to preserve identity and advance revision';
+  rejected:=false;
+  begin perform public.review_research_proposal((retry->>'id')::uuid,'approved','Stale','00000000-0000-4000-8000-000000000003'); exception when sqlstate 'P0002' then rejected:=true; end;
+  assert rejected,'Stale correction overwrote reviewed knowledge';
+  perform public.review_research_proposal((retry->>'id')::uuid,'rejected','Superseded by newer evidence','00000000-0000-4000-8000-000000000003');
+  assert (select body='A corrected fact.' from public.claims where id=saved_claim),'Rejection changed a claim';
+  -- Revocation, expiration, and loss of editor membership block future writes.
+  payload:=payload||jsonb_build_object('baseRevision',2,'requestId','50000000-0000-4000-8000-000000000004');
+  update public.research_tokens set revoked_at=now() where id='40000000-0000-4000-8000-000000000001';
+  rejected:=false;
+  begin perform public.submit_research_proposal('40000000-0000-4000-8000-000000000001',payload); exception when insufficient_privilege then rejected:=true; end;
+  assert rejected,'Revoked connector submitted';
+  update public.research_tokens set revoked_at=null,created_at=now()-interval '2 days',expires_at=now()-interval '1 day' where id='40000000-0000-4000-8000-000000000001';
+  rejected:=false;
+  begin perform public.submit_research_proposal('40000000-0000-4000-8000-000000000001',payload); exception when insufficient_privilege then rejected:=true; end;
+  assert rejected,'Expired connector submitted';
+  update public.research_tokens set expires_at=now()+interval '1 day' where id='40000000-0000-4000-8000-000000000001';
+  update public.memberships set role='tester' where user_id='00000000-0000-4000-8000-000000000003';
+  rejected:=false;
+  begin perform public.submit_research_proposal('40000000-0000-4000-8000-000000000001',payload); exception when insufficient_privilege then rejected:=true; end;
+  assert rejected,'Removed editor submitted';
+  update public.memberships set role='editor' where user_id='00000000-0000-4000-8000-000000000003';
+end $$;
+set role authenticated;
+set request.jwt.claim.sub='00000000-0000-4000-8000-000000000001';
+do $$ begin assert (select count(*) from public.research_proposals)=0,'Tester can read editorial proposals'; end $$;
+reset role;
+select 'PASS: connector scope, pending-only writes, idempotency, human review, correction races, revocation and expiration' as result;

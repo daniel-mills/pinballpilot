@@ -1,0 +1,152 @@
+{
+  "variantId": "iron-maiden-pro",
+  "name": "Iron Maiden: Legacy of the Beast",
+  "edition": "Pro",
+  "manufacturer": "Stern",
+  "demo": false,
+  "sources": [
+    {
+      "id": "stern-card",
+      "title": "Stern Iron Maiden instruction card",
+      "url": "https://pinball-universe.de/mediafiles/pdf/stern-pinball/instruction-cards/imd-instruction-card-en.pdf",
+      "kind": "manufacturer",
+      "locator": "Instruction card, game objectives",
+      "accessedAt": "2026-10-09",
+      "notes": "Manufacturer-authored card hosted by a distributor. Short summaries only; no redistribution of artwork. Check against installed software."
+    },
+    {
+      "id": "stern-pro",
+      "title": "Stern Iron Maiden Pro model page",
+      "url": "https://www.sternpinball.com/game/iron-maiden/pro/",
+      "kind": "manufacturer",
+      "locator": "Explore the playfield",
+      "accessedAt": "2026-10-09",
+      "notes": "Pro-specific physical features. No image reuse permission established."
+    },
+    {
+      "id": "stern-manual",
+      "title": "Stern Iron Maiden Pro service manual",
+      "url": "https://wp.sternpinball.com/wp-content/uploads/2019/03/IronMaiden_Pro_web.pdf",
+      "kind": "manufacturer",
+      "locator": "Sections 3 and 5: switch reference and playfield assemblies",
+      "accessedAt": "2026-10-09",
+      "notes": "Hardware and naming reference; not a complete gameplay rulesheet."
+    },
+    {
+      "id": "tilt-rules",
+      "title": "Iron Maiden community rulesheet",
+      "url": "https://tiltforums.com/t/iron-maiden-pinball-rulesheet/3787",
+      "kind": "rulesheet",
+      "locator": "Trooper / Mummy multiball sections",
+      "accessedAt": "2026-10-09",
+      "notes": "Community evidence. Verify edition, software, and operator settings. Pending detailed review."
+    }
+  ],
+  "claims": [
+    {
+      "id": "trooper-qualify",
+      "variantId": "iron-maiden-pro",
+      "kind": "fact",
+      "title": "Trooper starts with the drop targets",
+      "body": "Completing drop targets enables Trooper locks. Confirm the lit lock indicators before attempting the lock shots.",
+      "sourceIds": [
+        "stern-card"
+      ],
+      "status": "pending",
+      "revision": 1,
+      "reviewedRevision": null,
+      "reviewNote": "",
+      "software": "Unverified — capture the installed version during the next visit"
+    },
+    {
+      "id": "trooper-three",
+      "variantId": "iron-maiden-pro",
+      "kind": "fact",
+      "title": "Three Trooper locks start multiball",
+      "body": "Collect three qualified locks to begin Trooper Multiball.",
+      "sourceIds": [
+        "stern-card"
+      ],
+      "status": "pending",
+      "revision": 1,
+      "reviewedRevision": null,
+      "reviewNote": "",
+      "software": "Unverified — capture the installed version during the next visit"
+    },
+    {
+      "id": "mummy",
+      "variantId": "iron-maiden-pro",
+      "kind": "fact",
+      "title": "Mummy uses the captive ball",
+      "body": "The sarcophagus captive ball advances Mummy Multiball. Exact hit counts and the Pro lock sequence still need verification.",
+      "sourceIds": [
+        "stern-card"
+      ],
+      "status": "pending",
+      "revision": 1,
+      "reviewedRevision": null,
+      "reviewNote": "",
+      "software": "Unverified — capture the installed version during the next visit"
+    },
+    {
+      "id": "eddie",
+      "variantId": "iron-maiden-pro",
+      "kind": "fact",
+      "title": "Eddie letters lead to modes",
+      "body": "Collect EDDIE letters through the main shots, then use the middle shot to begin a mode. Check the lit indicators and display.",
+      "sourceIds": [
+        "stern-card"
+      ],
+      "status": "pending",
+      "revision": 1,
+      "reviewedRevision": null,
+      "reviewNote": "",
+      "software": "Unverified — capture the installed version during the next visit"
+    },
+    {
+      "id": "four-flippers",
+      "variantId": "iron-maiden-pro",
+      "kind": "fact",
+      "title": "Pro has four flippers",
+      "body": "The Pro playfield has four flippers, including a full-size upper-right flipper.",
+      "sourceIds": [
+        "stern-pro"
+      ],
+      "status": "pending",
+      "revision": 1,
+      "reviewedRevision": null,
+      "reviewNote": "",
+      "software": "Unverified — capture the installed version during the next visit"
+    },
+    {
+      "id": "jump-ramp",
+      "variantId": "iron-maiden-pro",
+      "kind": "fact",
+      "title": "Pro centre jump ramp",
+      "body": "The Pro has a stainless-steel centre jump ramp and a segmented bullseye target.",
+      "sourceIds": [
+        "stern-pro"
+      ],
+      "status": "pending",
+      "revision": 1,
+      "reviewedRevision": null,
+      "reviewNote": "",
+      "software": "Unverified — capture the installed version during the next visit"
+    },
+    {
+      "id": "start-trooper",
+      "variantId": "iron-maiden-pro",
+      "kind": "recommendation",
+      "title": "Simple multiball starting plan",
+      "body": "For a first learning goal, follow drop targets into the lit Trooper locks. This recommendation is an editorial inference from the instruction card and needs playtesting.",
+      "sourceIds": [
+        "stern-card"
+      ],
+      "status": "pending",
+      "revision": 1,
+      "reviewedRevision": null,
+      "reviewNote": "",
+      "software": "Unverified — capture the installed version during the next visit"
+    }
+  ]
+}

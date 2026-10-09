@@ -1,0 +1,38 @@
+{
+  "name": "pinballpilot",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "admin"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace admin",
+    "build": "npm run build --workspace admin",
+    "typecheck": "npm run typecheck --workspace admin && tsc -p tsconfig.backend.json",
+    "test:browser": "playwright test",
+    "test": "npm run mcp:build && vitest run",
+    "mcp:build": "tsc -p tsconfig.mcp.json",
+    "mcp:start": "node --env-file=.env.mcp.local mcp/dist/mcp/index.js",
+    "seed:generate": "node scripts/generate-content.mjs && node scripts/generate-seed.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.0",
+    "@simple-git/argv-parser": "2.0.1",
+    "@types/node": "22.19.1",
+    "simple-git": "4.0.2",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@supabase/supabase-js": "2.117.3",
+    "zod": "3.25.76"
+  },
+  "overrides": {
+    "simple-git": "4.0.2",
+    "@simple-git/argv-parser": "2.0.1"
+  },
+  "engines": {
+    "node": "^22.22.3 || ^24.15.0 || >=26.0.0"
+  }
+}

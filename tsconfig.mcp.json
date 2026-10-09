@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "target":"ES2022", "module":"NodeNext", "moduleResolution":"NodeNext",
+    "strict":true, "skipLibCheck":true, "rewriteRelativeImportExtensions":true,
+    "rootDir":".", "outDir":"mcp/dist", "types":["node"]
+  },
+  "include":["mcp/*.ts","shared/research.ts"]
+}
